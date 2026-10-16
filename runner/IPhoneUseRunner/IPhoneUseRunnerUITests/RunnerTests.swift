@@ -654,6 +654,7 @@ final class RunnerTests: XCTestCase {
     return .value(NSNull(), headers: ["X-IPU-Gesture": "synthesized"])
   }
 
+  /// 激活 SpringBoard 返回桌面并保留原应用进程；激活异常或新增 XCTest issue 会报告失败。
   func home() throws -> HTTPResponse {
     defer { IPURBridge.invalidateRequestCache() }
     // 部分真机上 Home 按键会正常返回却不切换应用；直接激活桌面，保留原应用进程。

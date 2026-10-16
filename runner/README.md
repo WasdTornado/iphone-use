@@ -445,6 +445,9 @@ python3 scripts/runner-smoke.py --runs 5   # timing of the native routes
   no other session driving it. It exercises `/home`, `/wda/homescreen` and `/wda/pressButton`
   from Calculator, checks SpringBoard is actually in front, repeats Home while already there,
   and checks Calculator keeps its process. A successful HTTP response alone does not pass.
+  Foreground lookup failures during a switch are polled for up to four seconds; actions
+  are never retried. Run `python3 scripts/test-runner-home-check.py` for device-free
+  regression tests of polling, timeouts and error handling (also included in `ci-check.sh`).
 - **Unlock first.** The phone must be unlocked when the runner starts, as with WDA.
 - **No test timeouts.** Do not pass `-test-timeouts-enabled YES`.
 - **One automation session.** iOS gives one XCTest automation session at a time, so a managed

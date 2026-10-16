@@ -10,6 +10,7 @@
 import argparse
 import json
 import time
+import urllib.error
 import urllib.request
 
 import runner_auth
@@ -20,18 +21,20 @@ CALCULATOR = "com.apple.calculator"
 
 
 def main():
+    """依次验证三个 Home 入口；全部通过返回 0，否则打印原因并返回 1。"""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--base", default="http://127.0.0.1:8100")
     args = parser.parse_args()
     opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
 
-    def call(method, path, body=None):
+    def call(method, path, body=None, timeout=10):
+        """发送一次签名请求并读取 value；请求或运行器报错时直接抛出异常。"""
         data = None if body is None else json.dumps(body).encode()
         request = urllib.request.Request(args.base.rstrip("/") + path, data=data, method=method)
         if data is not None:
             request.add_header("Content-Type", "application/json")
         runner_auth.sign(request)
-        with opener.open(request, timeout=10) as response:
+        with opener.open(request, timeout=timeout) as response:
             result = json.load(response)
         value = result["value"]
         if isinstance(value, dict) and "error" in value:
@@ -39,14 +42,29 @@ def main():
         return value
 
     def wait_for_app(bundle):
+        """最多等待四秒进入目标应用；重试只读查询，超时保留最后一次观测。"""
         deadline = time.monotonic() + 4
+        last_observation = "not queried"
+        last_error = None
         while True:
-            active = call("GET", "/apps/active")
-            if active.get("bundleId") == bundle:
-                return active
-            if time.monotonic() >= deadline:
-                raise AssertionError(f"expected {bundle}, got {active.get('bundleId')}")
-            time.sleep(0.1)
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise AssertionError(f"expected {bundle}, got {last_observation}") from last_error
+            try:
+                active = call("GET", "/apps/active", timeout=remaining)
+            except (OSError, RuntimeError) as error:
+                if isinstance(error, urllib.error.HTTPError):
+                    if error.code != 404:
+                        raise
+                    error.close()
+                last_error = error
+                last_observation = f"{type(error).__name__}: {error}"
+            else:
+                if active.get("bundleId") == bundle:
+                    return active
+                last_error = None
+                last_observation = active.get("bundleId")
+            time.sleep(min(0.1, max(0, deadline - time.monotonic())))
 
     # 覆盖三个公开入口，并检查在 SpringBoard 前台时再次调用仍能保持前台状态。
     failures = []
