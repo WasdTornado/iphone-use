@@ -789,7 +789,7 @@ extension RunnerTests {
     let name = (body["name"] as? String ?? "").lowercased()
     let button: XCUIDevice.Button
     switch name {
-    case "home": button = .home
+    case "home": return try home()
     #if targetEnvironment(simulator)
     // The Simulator has no volume buttons (the API is unavailable there).
     case "volumeup", "volumedown":

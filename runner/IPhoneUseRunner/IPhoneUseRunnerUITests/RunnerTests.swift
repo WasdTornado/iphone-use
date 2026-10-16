@@ -656,8 +656,15 @@ final class RunnerTests: XCTestCase {
 
   func home() throws -> HTTPResponse {
     defer { IPURBridge.invalidateRequestCache() }
-    if let exception = IPURBridge.catchException({ XCUIDevice.shared.press(.home) }) {
-      throw RunnerError.failed("home failed: \(exception)")
+    // 部分真机上 Home 按键会正常返回却不切换应用；直接激活桌面，保留原应用进程。
+    let application = XCUIApplication(bundleIdentifier: Self.springBoardBundleID)
+    let issuesBefore = recordedIssues.count
+    var exception: String?
+    IPURBridge.performWithoutQuiescence(application) {
+      exception = IPURBridge.catchException { application.activate() }
+    }
+    if let failure = exception ?? (recordedIssues.count > issuesBefore ? recordedIssues.last : nil) {
+      throw RunnerError.failed("home failed: \(failure)")
     }
     return .value(NSNull())
   }
