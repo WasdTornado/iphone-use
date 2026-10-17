@@ -654,19 +654,31 @@ final class RunnerTests: XCTestCase {
     return .value(NSNull(), headers: ["X-IPU-Gesture": "synthesized"])
   }
 
-  /// 激活 SpringBoard 返回桌面并保留原应用进程；激活异常或新增 XCTest issue 会报告失败。
+  /// Send Home once to dismiss system UI; activate SpringBoard only if the event had no effect.
   func home() throws -> HTTPResponse {
     defer { IPURBridge.invalidateRequestCache() }
-    // 部分真机上 Home 按键会正常返回却不切换应用；直接激活桌面，保留原应用进程。
-    let application = XCUIApplication(bundleIdentifier: Self.springBoardBundleID)
-    let issuesBefore = recordedIssues.count
-    var exception: String?
-    IPURBridge.performWithoutQuiescence(application) {
-      exception = IPURBridge.catchException { application.activate() }
+    func checked(_ action: () -> Void) throws {
+      let issuesBefore = recordedIssues.count
+      let exception = IPURBridge.catchException(action)
+      if let failure = exception ?? (recordedIssues.count > issuesBefore ? recordedIssues.last : nil) {
+        throw RunnerError.failed("home failed: \(failure)")
+      }
     }
-    if let failure = exception ?? (recordedIssues.count > issuesBefore ? recordedIssues.last : nil) {
-      throw RunnerError.failed("home failed: \(failure)")
-    }
+    try HomeAction.run(
+      press: { try checked { XCUIDevice.shared.press(.home) } },
+      isDesktop: {
+        // Every poll must observe fresh AX state, including independent Spotlight processes.
+        IPURBridge.invalidateRequestCache()
+        return self.foreground().bundleID == Self.springBoardBundleID
+      },
+      activate: {
+        let application = XCUIApplication(bundleIdentifier: Self.springBoardBundleID)
+        var failure: Error?
+        IPURBridge.performWithoutQuiescence(application) {
+          do { try checked { application.activate() } } catch { failure = error }
+        }
+        if let failure { throw failure }
+      })
     return .value(NSNull())
   }
 

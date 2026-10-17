@@ -441,6 +441,9 @@ python3 scripts/runner-smoke.py --runs 5   # timing of the native routes
   stream off.
 - **Screen-changing checks are opt-in.** `runner-compat.py` takes `--mutate` (Home, Settings,
   swipes, a cell click), `--tap X Y`, `--keys TEXT`, `--url URL` and `--lock`.
+- **Home behavior.** All three Home routes send the Home button event once, preserving dismissal
+  of folders and system overlays. If SpringBoard is still absent after 0.8 seconds, they activate
+  it once and verify foreground arrival for up to two seconds. Errors are reported, not replayed.
 - **Home regression.** Run `python3 scripts/runner-home-check.py` on an unlocked device with
   no other session driving it. It exercises `/home`, `/wda/homescreen` and `/wda/pressButton`
   from Calculator, checks SpringBoard is actually in front, repeats Home while already there,
